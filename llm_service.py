@@ -294,6 +294,12 @@ Use real data, no fictional names, base insights on actual Reddit activity.
             # Remove trailing commas before closing braces/brackets
             json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
             
+            # FIX: Handle double-quoted values (e.g., "name":""kojied"" -> "name":"kojied")
+            json_str = re.sub(r'""([^"]+)""', r'"\1"', json_str)
+            
+            # FIX: Handle malformed location strings (e.g., "location":""New York City", USA" -> "location":"New York City, USA")
+            json_str = re.sub(r'""([^"]+)"",\s*([^"]+)"', r'"\1, \2"', json_str)
+            
             # Fix unquoted string values more comprehensively
             # Pattern 1: "key": value (where value is not quoted and not a number)
             json_str = re.sub(r'("[^"]+"\s*:\s*)([A-Za-z][A-Za-z0-9\-_/\s]+?)(\s*[,}\]])', 
