@@ -143,7 +143,7 @@ Comments:
 {self._format_sample_content(context['sample_comments'])}
 
 TASK:
-Create a comprehensive, insightful persona for this Reddit user. Include:
+Create a comprehensive, insightful persona for this Reddit user. Include ALL of the following sections:
 
 1. PERSONALITY PROFILE:
    - Personality type and key traits
@@ -165,9 +165,52 @@ Create a comprehensive, insightful persona for this Reddit user. Include:
    - Interaction style
    - Online presence
 
-5. CITATIONS:
-   - For each major insight, cite specific posts/comments that support it
-   - Include post/comment ID, subreddit, and brief quote
+5. BEHAVIORS & HABITS:
+   - Daily patterns and lifestyle choices
+   - Reddit usage patterns
+   - Posting and commenting habits
+   - Time of day activity patterns
+
+6. GOALS & NEEDS:
+   - Primary objectives and requirements
+   - What they're seeking on Reddit
+   - Personal or professional goals
+   - Information or community needs
+
+7. BIG FIVE PERSONALITY TRAITS (OCEAN model):
+   - Openness to Experience (0-100)
+   - Conscientiousness (0-100)
+   - Extraversion (0-100)
+   - Agreeableness (0-100)
+   - Neuroticism (0-100)
+
+8. COMMUNITY ENGAGEMENT:
+   - Reddit participation metrics
+   - Subreddit diversity
+   - Interaction frequency
+   - Community contribution level
+
+9. ACTIVITY PATTERNS:
+   - User activity metrics
+   - Posting frequency
+   - Peak activity times
+   - Engagement patterns
+
+10. SENTIMENT TIMELINE:
+    - Sentiment over time
+    - Mood patterns
+    - Emotional consistency
+    - Sentiment trends
+
+11. USER MOTIVATIONS:
+    - What drives this user's behavior
+    - Primary motivations for posting/commenting
+    - Social, informational, or entertainment needs
+    - Personal goals and aspirations
+
+12. CITATIONS:
+    - For each major insight, cite specific posts/comments that support it
+    - Include post/comment ID, subreddit, and brief quote
 
 Format your response as a JSON object with the following structure:
 {{
@@ -184,6 +227,50 @@ Format your response as a JSON object with the following structure:
         "tone": "string"
     }},
     "social_views": ["view1", "view2"],
+    "behaviors_habits": {{
+        "daily_patterns": "string",
+        "lifestyle_choices": "string",
+        "reddit_usage": "string",
+        "posting_habits": "string",
+        "activity_times": "string"
+    }},
+    "goals_needs": {{
+        "primary_objectives": "string",
+        "reddit_seeking": "string",
+        "personal_goals": "string",
+        "information_needs": "string"
+    }},
+    "big_five_traits": {{
+        "openness": 75,
+        "conscientiousness": 60,
+        "extraversion": 45,
+        "agreeableness": 70,
+        "neuroticism": 30
+    }},
+    "community_engagement": {{
+        "participation_level": "string",
+        "subreddit_diversity": "string",
+        "interaction_frequency": "string",
+        "contribution_level": "string"
+    }},
+    "activity_patterns": {{
+        "posting_frequency": "string",
+        "peak_times": "string",
+        "engagement_style": "string",
+        "activity_metrics": "string"
+    }},
+    "sentiment_timeline": {{
+        "overall_trend": "string",
+        "mood_patterns": "string",
+        "emotional_consistency": "string",
+        "sentiment_evolution": "string"
+    }},
+    "user_motivations": {{
+        "primary_drivers": "string",
+        "posting_motivations": "string",
+        "social_needs": "string",
+        "personal_aspirations": "string"
+    }},
     "citations": [
         {{
             "trait": "string",
@@ -195,7 +282,7 @@ Format your response as a JSON object with the following structure:
     ]
 }}
 
-Be insightful, specific, and provide evidence for your conclusions.
+Be insightful, specific, and provide evidence for your conclusions. Fill in ALL sections with detailed information based on the user's Reddit activity.
 """
         
         return prompt
@@ -275,6 +362,50 @@ Be insightful, specific, and provide evidence for your conclusions.
                 'tone': 'Unknown'
             },
             'social_views': [],
+            'behaviors_habits': {
+                'daily_patterns': 'No behavioral data available',
+                'lifestyle_choices': 'No behavioral data available',
+                'reddit_usage': 'No behavioral data available',
+                'posting_habits': 'No behavioral data available',
+                'activity_times': 'No behavioral data available'
+            },
+            'goals_needs': {
+                'primary_objectives': 'No goals data available',
+                'reddit_seeking': 'No goals data available',
+                'personal_goals': 'No goals data available',
+                'information_needs': 'No goals data available'
+            },
+            'big_five_traits': {
+                'openness': 50,
+                'conscientiousness': 50,
+                'extraversion': 50,
+                'agreeableness': 50,
+                'neuroticism': 50
+            },
+            'community_engagement': {
+                'participation_level': 'No engagement data available',
+                'subreddit_diversity': 'No engagement data available',
+                'interaction_frequency': 'No engagement data available',
+                'contribution_level': 'No engagement data available'
+            },
+            'activity_patterns': {
+                'posting_frequency': 'No activity data available',
+                'peak_times': 'No activity data available',
+                'engagement_style': 'No activity data available',
+                'activity_metrics': 'No activity data available'
+            },
+            'sentiment_timeline': {
+                'overall_trend': 'No sentiment data available',
+                'mood_patterns': 'No sentiment data available',
+                'emotional_consistency': 'No sentiment data available',
+                'sentiment_evolution': 'No sentiment data available'
+            },
+            'user_motivations': {
+                'primary_drivers': 'No motivation data available',
+                'posting_motivations': 'No motivation data available',
+                'social_needs': 'No motivation data available',
+                'personal_aspirations': 'No motivation data available'
+            },
             'citations': []
         }
     
@@ -376,6 +507,11 @@ Be insightful, specific, and provide evidence for your conclusions.
         interests = analysis_results.get('interests', {})
         writing_style = analysis_results.get('writing_style', {})
         mbti = analysis_results.get('mbti_estimation', {})
+        activity_patterns = analysis_results.get('activity_patterns', {})
+        community_engagement = analysis_results.get('community_engagement', {})
+        
+        # Calculate Big Five traits from available data
+        big_five = self._calculate_big_five_traits(personality, sentiment, writing_style)
         
         # Build template persona
         persona = {
@@ -392,6 +528,44 @@ Be insightful, specific, and provide evidence for your conclusions.
                 'tone': writing_style.get('tone', 'Unknown')
             },
             'social_views': self._extract_social_views(posts, comments),
+            'behaviors_habits': {
+                'daily_patterns': f"User is most active during {activity_patterns.get('activity_pattern', 'unknown')} hours",
+                'lifestyle_choices': "Based on Reddit activity patterns",
+                'reddit_usage': f"Posts {len(posts)} times, comments {len(comments)} times",
+                'posting_habits': f"Average score: {sum(p.get('score', 0) for p in posts) / max(len(posts), 1):.1f}",
+                'activity_times': f"Peak activity: {activity_patterns.get('peak_hour', 'unknown')} hours"
+            },
+            'goals_needs': {
+                'primary_objectives': "Information sharing and community engagement",
+                'reddit_seeking': "Discussion and knowledge exchange",
+                'personal_goals': "Building online presence and connections",
+                'information_needs': "Community insights and discussions"
+            },
+            'big_five_traits': big_five,
+            'community_engagement': {
+                'participation_level': community_engagement.get('engagement_level', 'Moderate'),
+                'subreddit_diversity': f"{community_engagement.get('subreddit_diversity', 0)} different subreddits",
+                'interaction_frequency': f"{len(posts) + len(comments)} total interactions",
+                'contribution_level': f"Average score: {community_engagement.get('avg_score', 0):.1f}"
+            },
+            'activity_patterns': {
+                'posting_frequency': f"{len(posts)} posts, {len(comments)} comments",
+                'peak_times': f"Peak at {activity_patterns.get('peak_hour', 'unknown')} hours",
+                'engagement_style': activity_patterns.get('activity_pattern', 'Regular'),
+                'activity_metrics': f"Activity frequency: {activity_patterns.get('activity_frequency', 0)}"
+            },
+            'sentiment_timeline': {
+                'overall_trend': sentiment.get('sentiment_category', 'neutral'),
+                'mood_patterns': f"Sentiment score: {sentiment.get('overall_sentiment', 0):.2f}",
+                'emotional_consistency': f"Subjectivity: {sentiment.get('subjectivity', 0):.2f}",
+                'sentiment_evolution': "Based on recent activity"
+            },
+            'user_motivations': {
+                'primary_drivers': "Community engagement and information sharing",
+                'posting_motivations': "Discussion and knowledge exchange",
+                'social_needs': "Connection with like-minded individuals",
+                'personal_aspirations': "Building online presence and influence"
+            },
             'citations': self._generate_template_citations(posts, comments, personality.get('dominant_traits', []))
         }
         
@@ -473,6 +647,50 @@ Be insightful, specific, and provide evidence for your conclusions.
                 'tone': 'Unknown'
             },
             'social_views': ['General Reddit user'],
+            'behaviors_habits': {
+                'daily_patterns': 'No behavioral data available',
+                'lifestyle_choices': 'No behavioral data available',
+                'reddit_usage': 'No behavioral data available',
+                'posting_habits': 'No behavioral data available',
+                'activity_times': 'No behavioral data available'
+            },
+            'goals_needs': {
+                'primary_objectives': 'No goals data available',
+                'reddit_seeking': 'No goals data available',
+                'personal_goals': 'No goals data available',
+                'information_needs': 'No goals data available'
+            },
+            'big_five_traits': {
+                'openness': 50,
+                'conscientiousness': 50,
+                'extraversion': 50,
+                'agreeableness': 50,
+                'neuroticism': 50
+            },
+            'community_engagement': {
+                'participation_level': 'No engagement data available',
+                'subreddit_diversity': 'No engagement data available',
+                'interaction_frequency': 'No engagement data available',
+                'contribution_level': 'No engagement data available'
+            },
+            'activity_patterns': {
+                'posting_frequency': 'No activity data available',
+                'peak_times': 'No activity data available',
+                'engagement_style': 'No activity data available',
+                'activity_metrics': 'No activity data available'
+            },
+            'sentiment_timeline': {
+                'overall_trend': 'No sentiment data available',
+                'mood_patterns': 'No sentiment data available',
+                'emotional_consistency': 'No sentiment data available',
+                'sentiment_evolution': 'No sentiment data available'
+            },
+            'user_motivations': {
+                'primary_drivers': 'No motivation data available',
+                'posting_motivations': 'No motivation data available',
+                'social_needs': 'No motivation data available',
+                'personal_aspirations': 'No motivation data available'
+            },
             'citations': [],
             'metadata': {
                 'generated_at': datetime.now().isoformat(),
@@ -798,3 +1016,50 @@ Total Comments Analyzed: {len(real_comments)}
 """
         
         return text 
+
+    def _calculate_big_five_traits(self, personality: Dict, sentiment: Dict, writing_style: Dict) -> Dict[str, int]:
+        """Calculate Big Five personality traits from available data."""
+        # Default values
+        traits = {
+            'openness': 50,
+            'conscientiousness': 50,
+            'extraversion': 50,
+            'agreeableness': 50,
+            'neuroticism': 50
+        }
+        
+        # Adjust based on sentiment
+        sentiment_score = sentiment.get('overall_sentiment', 0)
+        if sentiment_score > 0.3:
+            traits['agreeableness'] += 20
+            traits['neuroticism'] -= 10
+        elif sentiment_score < -0.3:
+            traits['neuroticism'] += 20
+            traits['agreeableness'] -= 10
+        
+        # Adjust based on writing style
+        complexity = writing_style.get('complexity', 'moderate')
+        if complexity == 'high':
+            traits['openness'] += 15
+        elif complexity == 'low':
+            traits['openness'] -= 10
+        
+        # Adjust based on personality traits
+        dominant_traits = personality.get('dominant_traits', [])
+        for trait, score in dominant_traits:
+            if 'open' in trait.lower():
+                traits['openness'] += 10
+            elif 'conscientious' in trait.lower():
+                traits['conscientiousness'] += 10
+            elif 'extravert' in trait.lower():
+                traits['extraversion'] += 10
+            elif 'agreeable' in trait.lower():
+                traits['agreeableness'] += 10
+            elif 'neurotic' in trait.lower():
+                traits['neuroticism'] += 10
+        
+        # Ensure values are within 0-100 range
+        for key in traits:
+            traits[key] = max(0, min(100, traits[key]))
+        
+        return traits 

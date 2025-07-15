@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Sparkles, ArrowRight, Sun, Moon, Palette, History, MessageCircle, X, Send } from 'lucide-react';
 
 // Add proper timeout type
@@ -129,12 +129,14 @@ const bigFiveSolidColors = [
 
 const BigFiveBarChart = ({ traits, theme = 'dark' }: { traits: { name: string; value: number; color: string }[]; theme?: 'light' | 'dark' | 'color' }) => {
   // Ensure traits is an array and has valid data
-  const validTraits = Array.isArray(traits) ? traits.filter(trait => 
-    trait && typeof trait === 'object' && 
-    typeof trait.name === 'string' && 
-    typeof trait.value === 'number' &&
-    typeof trait.color === 'string'
-  ) : [];
+  const validTraits = useMemo(() => 
+    Array.isArray(traits) ? traits.filter(trait => 
+      trait && typeof trait === 'object' && 
+      typeof trait.name === 'string' && 
+      typeof trait.value === 'number' &&
+      typeof trait.color === 'string'
+    ) : [], [traits]
+  );
   
   const [animatedValues, setAnimatedValues] = useState(validTraits.map(() => 0));
   const [hovered, setHovered] = useState<number | null>(null);
@@ -221,11 +223,13 @@ const BigFiveBarChart = ({ traits, theme = 'dark' }: { traits: { name: string; v
 
 const RadarChart = ({ values, theme = 'dark' }: { values: { name: string; value: number }[]; theme?: 'light' | 'dark' | 'color' }) => {
   // Ensure values is an array and has valid data
-  const validValues = Array.isArray(values) ? values.filter(value => 
-    value && typeof value === 'object' && 
-    typeof value.name === 'string' && 
-    typeof value.value === 'number'
-  ) : [];
+  const validValues = useMemo(() => 
+    Array.isArray(values) ? values.filter(value => 
+      value && typeof value === 'object' && 
+      typeof value.name === 'string' && 
+      typeof value.value === 'number'
+    ) : [], [values]
+  );
   
   const [animatedVals, setAnimatedVals] = useState(validValues.map(() => 0));
   const [hovered, setHovered] = useState<number | null>(null);
@@ -244,7 +248,7 @@ const RadarChart = ({ values, theme = 'dark' }: { values: { name: string; value:
       }, 200 + i * 120));
     });
     return () => timeouts.forEach(clearTimeout);
-  }, [JSON.stringify(validValues)]);
+  }, [validValues]);
   
   // If no valid data, show a message
   if (validValues.length === 0) {
@@ -319,11 +323,13 @@ const RadarChart = ({ values, theme = 'dark' }: { values: { name: string; value:
 
 const PieChart = ({ traits, theme = 'dark' }: { traits: { name: string; value: number }[]; theme?: 'light' | 'dark' | 'color' }) => {
   // Ensure traits is an array and has valid data
-  const validTraits = Array.isArray(traits) ? traits.filter(trait => 
-    trait && typeof trait === 'object' && 
-    typeof trait.name === 'string' && 
-    typeof trait.value === 'number'
-  ) : [];
+  const validTraits = useMemo(() => 
+    Array.isArray(traits) ? traits.filter(trait => 
+      trait && typeof trait === 'object' && 
+      typeof trait.name === 'string' && 
+      typeof trait.value === 'number'
+    ) : [], [traits]
+  );
   
   const [animatedVals, setAnimatedVals] = useState(validTraits.map(() => 0));
   const [hovered, setHovered] = useState<number | null>(null);
@@ -341,7 +347,7 @@ const PieChart = ({ traits, theme = 'dark' }: { traits: { name: string; value: n
       }, 200 + i * 120));
     });
     return () => timeouts.forEach(clearTimeout);
-  }, [JSON.stringify(validTraits)]);
+  }, [validTraits]);
   
   // If no valid data, show a message
   if (validTraits.length === 0) {
@@ -455,11 +461,13 @@ const PieChart = ({ traits, theme = 'dark' }: { traits: { name: string; value: n
 
 const LineChart = ({ events, theme = 'dark' }: { events: { name: string; value: number }[]; theme?: 'light' | 'dark' | 'color' }) => {
   // Ensure events is an array and has valid data
-  const validEvents = Array.isArray(events) ? events.filter(event => 
-    event && typeof event === 'object' && 
-    typeof event.name === 'string' && 
-    typeof event.value === 'number'
-  ) : [];
+  const validEvents = useMemo(() => 
+    Array.isArray(events) ? events.filter(event => 
+      event && typeof event === 'object' && 
+      typeof event.name === 'string' && 
+      typeof event.value === 'number'
+    ) : [], [events]
+  );
   
   const [animatedVals, setAnimatedVals] = useState(validEvents.map(() => 0));
   const [hovered, setHovered] = useState<number | null>(null);
@@ -717,11 +725,13 @@ const RadialProgress = ({ goals }: { goals: { name: string; value: number }[] })
 
 const BarChart = ({ issues, theme = 'dark' }: { issues: { name: string; value: number }[]; theme?: 'light' | 'dark' | 'color' }) => {
   // Ensure issues is an array and has valid data
-  const validIssues = Array.isArray(issues) ? issues.filter(issue => 
-    issue && typeof issue === 'object' && 
-    typeof issue.name === 'string' && 
-    typeof issue.value === 'number'
-  ) : [];
+  const validIssues = useMemo(() => 
+    Array.isArray(issues) ? issues.filter(issue => 
+      issue && typeof issue === 'object' && 
+      typeof issue.name === 'string' && 
+      typeof issue.value === 'number'
+    ) : [], [issues]
+  );
   
   const [animatedVals, setAnimatedVals] = useState(validIssues.map(() => 0));
   
@@ -869,6 +879,28 @@ const HeroSection = () => {
   const [maxPosts, setMaxPosts] = useState(25); // Updated to match backend default
   const [maxComments, setMaxComments] = useState(30); // Updated to match backend default
   
+  // Memoize chart data to prevent infinite re-renders
+  const chartData = useMemo(() => {
+    if (!result?.persona?.chart_data) return null;
+    return {
+      big_five: result.persona.chart_data.big_five || [],
+      personality_radar: result.persona.chart_data.personality_radar || [],
+      interests_pie: result.persona.chart_data.interests_pie || [],
+      community_engagement: result.persona.chart_data.community_engagement || [],
+      activity_patterns: result.persona.chart_data.activity_patterns || [],
+      sentiment_timeline: result.persona.chart_data.sentiment_timeline || [],
+      real_content: result.persona.chart_data.real_content || null
+    };
+  }, [result?.persona?.chart_data]);
+  
+  // Memoize individual chart data arrays to prevent infinite re-renders
+  const bigFiveData = useMemo(() => chartData?.big_five || [], [chartData?.big_five]);
+  const personalityRadarData = useMemo(() => chartData?.personality_radar || [], [chartData?.personality_radar]);
+  const interestsPieData = useMemo(() => chartData?.interests_pie || [], [chartData?.interests_pie]);
+  const communityEngagementData = useMemo(() => chartData?.community_engagement || [], [chartData?.community_engagement]);
+  const activityPatternsData = useMemo(() => chartData?.activity_patterns || [], [chartData?.activity_patterns]);
+  const sentimentTimelineData = useMemo(() => chartData?.sentiment_timeline || [], [chartData?.sentiment_timeline]);
+  
   // Load history from localStorage on component mount
   useEffect(() => {
     try {
@@ -959,7 +991,7 @@ const HeroSection = () => {
           max_posts: maxPosts,
           max_comments: maxComments,
           save_json: true,
-          generate_pdf: false,
+          generate_pdf: true,
           save_visualizations: true
         })
       });
@@ -977,6 +1009,7 @@ const HeroSection = () => {
       // Transform the API result to match our frontend format
       const transformedResult = {
         // Include real data from the API
+        username: apiResult.username, // This is the key field we were missing!
         persona: apiResult.persona,
         analysisMetadata: apiResult.metadata || apiResult.persona?.metadata,
         // Add metadata for display
@@ -1267,19 +1300,48 @@ You can ask me about their personality traits, motivations, demographics, or any
   // Add this helper function near the top-level of the HeroSection component
   const handleDownloadPDF = async (username: string) => {
     try {
-      // Optionally, show a loading indicator
-      const res = await fetch(`http://localhost:8080/download/pdf/${username}`);
-      if (!res.ok) throw new Error('Failed to generate PDF');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${username}_persona_report.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      // Clean the username - remove any 'u/' prefix and ensure it's not empty
+      const cleanUsername = username.replace(/^u\//, '').trim();
+      if (!cleanUsername || cleanUsername === 'user' || cleanUsername === 'Unknown') {
+        // Try to get username from the current result - check the API response structure
+        const currentUsername = result?.username || // This is the main username field from API
+                               result?.persona?.reddit_username || 
+                               result?.persona?.name || 
+                               result?.persona?.metadata?.username;
+        
+        if (!currentUsername || currentUsername === 'user' || currentUsername === 'Unknown') {
+          alert('Unable to determine username for PDF download. Please try the analysis again.');
+          return;
+        }
+        
+        // Use the current username
+        const res = await fetch(`http://localhost:8080/download/pdf/${currentUsername}`);
+        if (!res.ok) throw new Error('Failed to generate PDF');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${currentUsername}_persona_report.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Use the provided username
+        const res = await fetch(`http://localhost:8080/download/pdf/${cleanUsername}`);
+        if (!res.ok) throw new Error('Failed to generate PDF');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${cleanUsername}_persona_report.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
     } catch (err) {
+      console.error('PDF download error:', err);
       alert('Failed to download PDF. Please try again.');
     }
   };
@@ -1782,8 +1844,8 @@ You can ask me about their personality traits, motivations, demographics, or any
                       <div className="w-full h-full flex flex-col justify-center space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className={`text-center p-4 rounded-xl ${currentTheme.card} border border-white/20`}>
-                            <div className="text-2xl font-bold text-blue-400 mb-2">{result?.persona?.name || 'Unknown'}</div>
-                            <div className="text-sm text-gray-400">Name</div>
+                            <div className="text-2xl font-bold text-blue-400 mb-2">{result?.username || result?.persona?.name || 'Unknown'}</div>
+                            <div className="text-sm text-gray-400">Username</div>
                           </div>
                           <div className={`text-center p-4 rounded-xl ${currentTheme.card} border border-white/20`}>
                             <div className="text-2xl font-bold text-green-400 mb-2">{result?.persona?.age || 'Unknown'}</div>
@@ -2091,47 +2153,50 @@ You can ask me about their personality traits, motivations, demographics, or any
             )}
 
             {/* Section 3: Charts and Visualizations - Only show if we have chart data */}
-                            {result?.persona && result.persona.chart_data && !result.error && (
-            <section className="space-y-8">
-              <div className="text-center">
+            {result?.persona && result.persona.chart_data && !result.error && (
+              <section className="space-y-8">
+                <div className="text-center">
                   <h2 className={`text-3xl font-bold ${currentTheme.text} mb-2 drop-shadow-glow`}>Data Visualizations</h2>
                   <p className={currentTheme.subtitle}>Interactive charts and analytics from Reddit activity</p>
-              </div>
+                </div>
                 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Personality Radar Chart */}
-                  {result?.persona?.chart_data?.personality_radar && (
-                <ChartCard 
+                  {personalityRadarData.length > 0 &&
+                   personalityRadarData.some((item: any) => item.value > 0) && (
+                    <ChartCard 
                       title="Personality Radar" 
                       subtitle="MBTI-style personality dimensions"
                       height="h-[400px]"
                       theme={theme}
                     >
                       <RadarChart 
-                        values={result?.persona?.chart_data?.personality_radar}
+                        values={personalityRadarData}
                         theme={theme}
                       />
-                </ChartCard>
+                    </ChartCard>
                   )}
 
                   {/* Interests Pie Chart */}
-                  {result?.persona?.chart_data?.interests_pie && (
-                <ChartCard 
+                  {interestsPieData.length > 0 &&
+                   interestsPieData.some((item: any) => item.value > 0) && (
+                    <ChartCard 
                       title="Interest Distribution" 
                       subtitle="Top interests and preferences"
-                  height="h-[400px]"
+                      height="h-[400px]"
                       theme={theme}
-                >
+                    >
                       <PieChart 
-                        traits={result?.persona?.chart_data?.interests_pie}
+                        traits={interestsPieData}
                         theme={theme}
                       />
-                </ChartCard>
+                    </ChartCard>
                   )}
-              </div>
+                </div>
 
                 {/* Big Five Personality Traits */}
-                {result?.persona?.chart_data?.big_five && (
+                {bigFiveData.length > 0 &&
+                 bigFiveData.some((item: any) => item.value > 0) && (
                   <ChartCard 
                     title="Big Five Personality Traits" 
                     subtitle="OCEAN model analysis"
@@ -2139,14 +2204,15 @@ You can ask me about their personality traits, motivations, demographics, or any
                     theme={theme}
                   >
                     <BigFiveBarChart 
-                      traits={result?.persona?.chart_data?.big_five}
+                      traits={bigFiveData}
                       theme={theme}
                     />
                   </ChartCard>
                 )}
 
                 {/* Community Engagement */}
-                {result?.persona?.chart_data?.community_engagement && (
+                {communityEngagementData.length > 0 &&
+                 communityEngagementData.some((item: any) => item.value > 0) && (
                   <ChartCard 
                     title="Community Engagement" 
                     subtitle="Reddit participation metrics"
@@ -2154,14 +2220,15 @@ You can ask me about their personality traits, motivations, demographics, or any
                     theme={theme}
                   >
                     <BarChart 
-                      issues={result?.persona?.chart_data?.community_engagement}
+                      issues={communityEngagementData}
                       theme={theme}
                     />
                   </ChartCard>
                 )}
 
                 {/* Activity Patterns */}
-                {result?.persona?.chart_data?.activity_patterns && (
+                {activityPatternsData.length > 0 &&
+                 activityPatternsData.some((item: any) => item.value > 0) && (
                   <ChartCard 
                     title="Activity Patterns" 
                     subtitle="User activity metrics"
@@ -2169,14 +2236,15 @@ You can ask me about their personality traits, motivations, demographics, or any
                     theme={theme}
                   >
                     <BarChart 
-                      issues={result?.persona?.chart_data?.activity_patterns}
+                      issues={activityPatternsData}
                       theme={theme}
                     />
                   </ChartCard>
                 )}
 
                 {/* Sentiment Timeline */}
-                {result?.persona?.chart_data?.sentiment_timeline && (
+                {sentimentTimelineData.length > 0 &&
+                 sentimentTimelineData.some((item: any) => item.value > 0) && (
                   <ChartCard 
                     title="Sentiment Timeline" 
                     subtitle="Sentiment over time"
@@ -2184,12 +2252,12 @@ You can ask me about their personality traits, motivations, demographics, or any
                     theme={theme}
                   >
                     <LineChart 
-                      events={result?.persona?.chart_data?.sentiment_timeline}
+                      events={sentimentTimelineData}
                       theme={theme}
                     />
                   </ChartCard>
                 )}
-            </section>
+              </section>
             )}
 
             {/* Section 4: Mock Data Charts - Only show if we don't have real chart data but have persona */}
@@ -2314,8 +2382,8 @@ You can ask me about their personality traits, motivations, demographics, or any
                               </a>
                             </div>
                           </div>
-                ))}
-              </div>
+                        ))}
+                      </div>
                     </ChartCard>
                   )}
 
@@ -2365,7 +2433,9 @@ You can ask me about their personality traits, motivations, demographics, or any
                 </div>
 
                 {/* Motivations Chart */}
-                {result?.persona?.chart_data?.motivations && (
+                {result?.persona?.chart_data?.motivations && 
+                 result.persona.chart_data.motivations.length > 0 &&
+                 result.persona.chart_data.motivations.some((item: any) => item.value > 0) && (
                   <ChartCard 
                     title="User Motivations" 
                     subtitle="What drives this user's behavior"
@@ -2456,7 +2526,7 @@ You can ask me about their personality traits, motivations, demographics, or any
       {result?.persona && !result.error && (
         <div className="flex justify-end mt-4">
           <button
-            onClick={() => handleDownloadPDF(result?.persona?.reddit_username || result?.persona?.name || 'user')}
+            onClick={() => handleDownloadPDF(result?.username || result?.persona?.reddit_username || result?.persona?.name || result?.persona?.metadata?.username || '')}
             className={`px-6 py-3 rounded-xl font-semibold bg-gradient-to-r from-blue-600 to-green-500 text-white shadow-lg hover:scale-105 transition-all duration-300`}
           >
             Download Full PDF Report

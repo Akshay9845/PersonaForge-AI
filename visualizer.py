@@ -50,61 +50,53 @@ class PersonaVisualizer:
         """Safely extract personality traits from persona data."""
         traits_data = []
         try:
-            personality = persona.get('personality', {})
+            # Try different possible locations for traits
+            traits = persona.get('personality', {})
+            if not traits:
+                traits = persona.get('traits', {})
+            if not traits:
+                traits = persona.get('big_five', {})
             
-            # Try MBTI-style traits first
-            mbti_pairs = [
-                ('Introvert', personality.get('introvert', 0)),
-                ('Extrovert', personality.get('extrovert', 0)),
-                ('Intuition', personality.get('intuition', 0)),
-                ('Sensing', personality.get('sensing', 0)),
-                ('Feeling', personality.get('feeling', 0)),
-                ('Thinking', personality.get('thinking', 0))
-            ]
-            
-            for name, value in mbti_pairs:
-                if isinstance(value, (int, float)) and value > 0:
-                    traits_data.append((str(name), float(value)))
-            
-            # If no MBTI data, try traits dict/list
-            if not traits_data:
-                traits = personality.get('traits', [])
-                if isinstance(traits, dict):
-                    for key, value in list(traits.items())[:6]:
-                        if isinstance(value, (int, float)) and value > 0:
-                            traits_data.append((str(key), float(value)))
-                elif isinstance(traits, list):
-                    for trait in traits[:6]:
-                        if isinstance(trait, str):
-                            traits_data.append((str(trait), 0.8))
-            
-            # If still no data, try Big Five
-            if not traits_data:
-                big_five = [
-                    ('Openness', personality.get('openness', 0)),
-                    ('Conscientiousness', personality.get('conscientiousness', 0)),
-                    ('Extraversion', personality.get('extraversion', 0)),
-                    ('Agreeableness', personality.get('agreeableness', 0)),
-                    ('Neuroticism', personality.get('neuroticism', 0))
-                ]
-                for name, value in big_five:
+            if isinstance(traits, dict):
+                for trait, value in traits.items():
                     if isinstance(value, (int, float)) and value > 0:
-                        traits_data.append((str(name), float(value)))
+                        traits_data.append((str(trait), float(value)))
             
-            # Fallback to default traits if nothing else works
+            elif isinstance(traits, list):
+                for trait in traits[:10]:
+                    if isinstance(trait, str):
+                        traits_data.append((str(trait), 0.8))
+                    elif isinstance(trait, (list, tuple)) and len(trait) >= 2:
+                        trait_name = str(trait[0])
+                        trait_value = trait[1]
+                        if isinstance(trait_value, (int, float)) and trait_value > 0:
+                            traits_data.append((trait_name, float(trait_value)))
+            
+            # Fallback traits if nothing else works
             if not traits_data:
-                default_traits = ['Analytical', 'Creative', 'Social', 'Practical', 'Emotional', 'Logical']
+                default_traits = ['Openness', 'Conscientiousness', 'Extraversion', 'Agreeableness', 'Neuroticism']
                 for trait in default_traits:
                     traits_data.append((trait, 0.7))
                     
         except Exception as e:
             logger.warning(f"Error extracting traits: {e}")
             # Fallback traits
-            default_traits = ['Analytical', 'Creative', 'Social', 'Practical', 'Emotional', 'Logical']
+            default_traits = ['Openness', 'Conscientiousness', 'Extraversion', 'Agreeableness', 'Neuroticism']
             for trait in default_traits:
                 traits_data.append((trait, 0.7))
         
-        return traits_data
+        # Ensure we return a list of tuples, not a dict
+        if traits_data and isinstance(traits_data[0], dict):
+            # Convert dict to list of tuples
+            converted_data = []
+            for item in traits_data:
+                if isinstance(item, dict):
+                    for key, value in item.items():
+                        if isinstance(value, (int, float)) and value > 0:
+                            converted_data.append((str(key), float(value)))
+            traits_data = converted_data
+        
+        return traits_data[:10]  # Limit to 10 traits
     
     def _safe_extract_interests(self, persona: Dict[str, Any]) -> List[tuple]:
         """Safely extract interests from persona data."""
@@ -138,6 +130,11 @@ class PersonaVisualizer:
                 for interest in interests[:10]:
                     if isinstance(interest, str):
                         interests_data.append((str(interest), 1.0))
+                    elif isinstance(interest, (list, tuple)) and len(interest) >= 2:
+                        interest_name = str(interest[0])
+                        interest_score = interest[1]
+                        if isinstance(interest_score, (int, float)) and interest_score > 0:
+                            interests_data.append((interest_name, float(interest_score)))
             
             # Fallback interests if nothing else works
             if not interests_data:
@@ -151,6 +148,17 @@ class PersonaVisualizer:
             default_interests = ['Technology', 'Gaming', 'Sports', 'Entertainment', 'Science']
             for interest in default_interests:
                 interests_data.append((interest, 0.8))
+        
+        # Ensure we return a list of tuples, not a dict
+        if interests_data and isinstance(interests_data[0], dict):
+            # Convert dict to list of tuples
+            converted_data = []
+            for item in interests_data:
+                if isinstance(item, dict):
+                    for key, value in item.items():
+                        if isinstance(value, (int, float)) and value > 0:
+                            converted_data.append((str(key), float(value)))
+            interests_data = converted_data
         
         return interests_data[:10]  # Limit to 10 interests
     

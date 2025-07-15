@@ -30,10 +30,10 @@ class LLMService:
 
     def _initialize_clients(self):
         """Initialize both Groq and Gemini clients."""
-        # Initialize Groq client
+        # Initialize Groq client - SIMPLIFIED APPROACH
         try:
             from groq import Groq
-            # Simple initialization without any extra parameters
+            # Use the simplest possible initialization
             self.groq_client = Groq(api_key=self.groq_api_key)
             logger.info("Groq client initialized successfully")
         except ImportError:
@@ -41,7 +41,16 @@ class LLMService:
             self.groq_client = None
         except Exception as e:
             logger.error(f"Failed to initialize Groq client: {e}")
-            self.groq_client = None
+            # Try alternative approach
+            try:
+                import os
+                os.environ['GROQ_API_KEY'] = self.groq_api_key
+                from groq import Groq
+                self.groq_client = Groq()
+                logger.info("Alternative Groq initialization successful")
+            except Exception as e2:
+                logger.error(f"Alternative Groq initialization also failed: {e2}")
+                self.groq_client = None
 
         # Initialize Gemini client
         try:
@@ -83,7 +92,7 @@ class LLMService:
     async def _call_groq_with_retry(self, prompt: str):
         """Call Groq API with retry logic - optimized for production speed."""
         last_exception = None
-        max_retries = 2  # Reduced retries for faster response
+        max_retries = 1  # Reduced to 1 retry to avoid quota exhaustion
         base_delay = 0.5  # Faster retry delays
         
         for attempt in range(max_retries):
@@ -93,10 +102,10 @@ class LLMService:
                     messages=[
                         {"role": "user", "content": prompt}
                     ],
-                    model="llama3-70b-8192",  # Fastest model
+                    model="llama3-8b-8192",  # Smaller, faster model for token efficiency
                     temperature=0.5,  # Lower temperature for more consistent results
-                    max_tokens=3000,  # Reduced for faster response
-                    timeout=30  # 30 second timeout
+                    max_tokens=1000,  # Further reduced for token efficiency
+                    timeout=15  # Reduced timeout
                 )
                 
                 content = response.choices[0].message.content
@@ -107,11 +116,13 @@ class LLMService:
                 
             except Exception as e:
                 last_exception = e
+                error_str = str(e).lower()
                 logger.warning(f"Groq API attempt {attempt + 1} failed: {e}")
-                if "rate" in str(e).lower() or "429" in str(e) or "quota" in str(e).lower():
-                    delay = base_delay * (2 ** attempt)
-                    logger.info(f"Rate limit detected, waiting {delay} seconds before retry")
-                    await asyncio.sleep(delay)
+                
+                # Check for specific error types
+                if any(keyword in error_str for keyword in ["rate", "429", "quota", "limit", "token"]):
+                    logger.info("Rate/token limit detected, skipping retry to avoid quota exhaustion")
+                    break  # Don't retry on rate limits to avoid quota exhaustion
                 elif attempt < max_retries - 1:
                     await asyncio.sleep(base_delay)
         
@@ -120,7 +131,7 @@ class LLMService:
     async def _call_gemini_with_retry(self, prompt: str):
         """Call Gemini API with retry logic - optimized for production speed."""
         last_exception = None
-        max_retries = 2  # Reduced retries for faster response
+        max_retries = 1  # Reduced to 1 retry to avoid quota exhaustion
         base_delay = 0.5  # Faster retry delays
         
         for attempt in range(max_retries):
@@ -130,7 +141,7 @@ class LLMService:
                     prompt,
                     generation_config={
                         'temperature': 0.5,
-                        'max_output_tokens': 3000,
+                        'max_output_tokens': 1000,  # Reduced to match Groq
                         'top_p': 0.8,
                         'top_k': 40
                     }
@@ -142,11 +153,13 @@ class LLMService:
                 return persona_data
             except Exception as e:
                 last_exception = e
+                error_str = str(e).lower()
                 logger.warning(f"Gemini API attempt {attempt + 1} failed: {e}")
-                if "rate" in str(e).lower() or "429" in str(e) or "quota" in str(e).lower():
-                    delay = base_delay * (2 ** attempt)
-                    logger.info(f"Rate limit detected, waiting {delay} seconds before retry")
-                    await asyncio.sleep(delay)
+                
+                # Check for specific error types
+                if any(keyword in error_str for keyword in ["rate", "429", "quota", "limit", "token"]):
+                    logger.info("Rate/token limit detected, skipping retry to avoid quota exhaustion")
+                    break  # Don't retry on rate limits to avoid quota exhaustion
                 elif attempt < max_retries - 1:
                     await asyncio.sleep(base_delay)
         raise last_exception
@@ -160,47 +173,33 @@ class LLMService:
         comments = user_data.get('comments', [])
         user_info = user_data.get('user_info', {})
         
-        # Format sample posts and comments for context
+        # Format sample posts and comments for context (REDUCED TO 2 EACH)
         sample_posts_text = ""
         if posts:
-            sample_posts_text = "\nSample Posts:\n"
-            for i, post in enumerate(posts[:5], 1):
-                sample_posts_text += f"{i}. Title: {post.get('title', 'No title')}\n"
-                sample_posts_text += f"   Subreddit: r/{post.get('subreddit', 'unknown')}\n"
-                sample_posts_text += f"   Score: {post.get('score', 0)} | Comments: {post.get('num_comments', 0)}\n"
+            sample_posts_text = "\nPosts:\n"
+            for i, post in enumerate(posts[:2], 1):  # REDUCED FROM 5 TO 2
+                sample_posts_text += f"{i}. {post.get('title', 'No title')} (r/{post.get('subreddit', 'unknown')}, {post.get('score', 0)})\n"
                 if post.get('body'):
-                    sample_posts_text += f"   Content: {post.get('body', '')[:200]}...\n"
-                sample_posts_text += f"   URL: {post.get('permalink', '')}\n\n"
+                    sample_posts_text += f"   {post.get('body', '')[:100]}...\n"  # REDUCED FROM 200 TO 100
+                sample_posts_text += "\n"
         
         sample_comments_text = ""
         if comments:
-            sample_comments_text = "\nSample Comments:\n"
-            for i, comment in enumerate(comments[:5], 1):
-                sample_comments_text += f"{i}. Subreddit: r/{comment.get('subreddit', 'unknown')}\n"
-                sample_comments_text += f"   Score: {comment.get('score', 0)}\n"
-                sample_comments_text += f"   Content: {comment.get('body', '')[:200]}...\n"
-                sample_comments_text += f"   URL: {comment.get('permalink', '')}\n\n"
+            sample_comments_text = "\nComments:\n"
+            for i, comment in enumerate(comments[:2], 1):  # REDUCED FROM 5 TO 2
+                sample_comments_text += f"{i}. r/{comment.get('subreddit', 'unknown')} ({comment.get('score', 0)})\n"
+                sample_comments_text += f"   {comment.get('body', '')[:100]}...\n"  # REDUCED FROM 200 TO 100
+                sample_comments_text += "\n"
         
-        # Create analysis summary
+        # SHORTENED analysis summary
         analysis_summary = f"""
-User Analysis Summary:
-- Username: u/{username}
-- Account Age: {self._format_account_age(user_info.get('created_utc'))}
-- Karma: {user_info.get('link_karma', 0)} post, {user_info.get('comment_karma', 0)} comment
-- Total Posts: {len(posts)}
-- Total Comments: {len(comments)}
-- Analysis Score: {analysis_results.get('confidence_score', 75)}
-
-Analysis Results:
-- Sentiment: {analysis_results.get('sentiment_analysis', {}).get('overall_sentiment', 'neutral')}
-- Personality Type: {analysis_results.get('personality_traits', {}).get('personality_type', 'Unknown')}
-- Key Interests: {', '.join([interest[0] for interest in analysis_results.get('interests', {}).get('top_interests', [])[:5]])}
-- Writing Style: {analysis_results.get('writing_style', {}).get('summary', 'Standard')}
-- Activity Level: {analysis_results.get('activity_patterns', {}).get('activity_pattern', 'Moderate')}
+User: u/{username} | Karma: {user_info.get('link_karma', 0)}/{user_info.get('comment_karma', 0)} | Posts: {len(posts)} | Comments: {len(comments)}
+Sentiment: {analysis_results.get('sentiment_analysis', {}).get('overall_sentiment', 'neutral')}
+Interests: {', '.join([interest[0] for interest in analysis_results.get('interests', {}).get('top_interests', [])[:3]])}  # REDUCED FROM 5 TO 3
 """
         
         prompt = f"""
-You are an expert user researcher and psychologist specializing in creating detailed user personas based on Reddit activity data. Create a comprehensive persona in the EXACT format of the Lucas Mellor example, including real post and comment data.
+Create a Reddit user persona based on this data:
 
 {analysis_summary}
 
@@ -208,17 +207,15 @@ You are an expert user researcher and psychologist specializing in creating deta
 
 {sample_comments_text}
 
-Generate a detailed persona with this EXACT JSON structure (matching Lucas Mellor format):
+Return ONLY valid JSON:
 
 {{
     "name": "{username}",
-    "age": 25-65 (estimate based on content maturity and interests),
-    "occupation": "Job title based on content and expertise shown",
-    "status": "Single/Married/In Relationship (if mentioned)",
-    "location": "City, Country (if mentioned in posts/comments)",
-    "tier": "Reddit User/Early Adopter/Influencer/Expert",
-    "archetype": "The Creator/The Explorer/The Helper/The Achiever/The Individualist/The Caregiver/The Enthusiast/The Challenger/The Peacemaker",
-    "traits": ["trait1", "trait2", "trait3", "trait4"],
+    "age": "25-65",
+    "occupation": "job title",
+    "location": "city, country",
+    "archetype": "The Creator/Explorer/Helper/Achiever/Individualist/Caregiver/Enthusiast/Challenger/Peacemaker",
+    "traits": ["trait1", "trait2", "trait3"],
     "motivations": {{
         "convenience": 0-100,
         "wellness": 0-100,
@@ -237,95 +234,173 @@ Generate a detailed persona with this EXACT JSON structure (matching Lucas Mello
         "perceiving": 0-100,
         "judging": 0-100
     }},
-    "behavior_habits": [
-        "Specific behavior based on their Reddit activity",
-        "Another specific behavior pattern",
-        "Third behavior pattern"
-    ],
-    "frustrations": [
-        "Frustration inferred from their posts/comments",
-        "Another frustration they express",
-        "Third frustration pattern"
-    ],
-    "goals_needs": [
-        "Goal or need expressed in their content",
-        "Another goal or need",
-        "Third goal or need"
-    ],
-    "quote": "A representative 20+ word quote from their actual posts or comments",
+    "behavior_habits": ["behavior1", "behavior2", "behavior3"],
+    "frustrations": ["frustration1", "frustration2", "frustration3"],
+    "goals_needs": ["goal1", "goal2", "goal3"],
+    "quote": "real quote from their content (20+ words)",
     "reddit_username": "u/{username}",
     "analysis_score": 75-95,
     "real_posts": [
         {{
-            "title": "Actual post title",
-            "subreddit": "r/subreddit_name",
+            "title": "post title",
+            "subreddit": "r/subreddit",
             "score": 123,
-            "content": "First 100 characters of post content...",
+            "content": "first 100 chars...",
             "url": "https://reddit.com/permalink"
         }}
     ],
     "real_comments": [
         {{
-            "subreddit": "r/subreddit_name",
+            "subreddit": "r/subreddit",
             "score": 45,
-            "content": "First 100 characters of comment content...",
+            "content": "first 100 chars...",
             "url": "https://reddit.com/permalink"
         }}
     ],
     "interests": ["interest1", "interest2", "interest3"],
     "writing_style": {{
-        "summary": "Writing style description",
+        "summary": "style description",
         "complexity": "Simple/Moderate/Complex",
-        "tone": "Formal/Casual/Humorous/Analytical/etc"
+        "tone": "Formal/Casual/Humorous/Analytical"
     }},
     "social_views": ["view1", "view2"],
     "activity_patterns": {{
-        "frequency": "Daily/Weekly/etc",
-        "peak_hours": "When they're most active",
-        "engagement_style": "How they interact"
+        "frequency": "Daily/Weekly",
+        "peak_hours": "active time",
+        "engagement_style": "interaction style"
     }}
 }}
 
-CRITICAL REQUIREMENTS:
-1. Use the Reddit username "{username}" as the persona name - do NOT generate fictional names
-2. Use ONLY real data from their actual posts and comments
-3. The quote must be a real quote from their content (20+ words)
-4. Include 2-3 real posts and 2-3 real comments in the data
-5. All insights must be backed by their actual Reddit activity
-6. Motivation scores should reflect their priorities based on content
-7. Personality scores should be MBTI-style spectrum (0-100 each dimension)
-8. Behavior habits, frustrations, and goals must be inferred from their actual posts/comments
-9. Make the persona realistic and data-driven
-10. If information is not available, use reasonable defaults but mark analysis_score lower
-
-Base everything on the actual Reddit data provided. The persona should look like a real user profile with genuine insights from their online behavior.
+Use real data, no fictional names, base insights on actual Reddit activity.
 """
         
         return prompt
     
-    def _parse_llm_response(self, content: str) -> Dict[str, Any]:
-        """Parse LLM response and extract JSON."""
-        import re
+    def _parse_llm_response(self, content: str) -> dict:
+        """Parse LLM response and extract JSON robustly."""
+        import re, json
         try:
-            # Try to extract JSON from the response
-            start_idx = content.find('{')
-            end_idx = content.rfind('}') + 1
-            if start_idx != -1 and end_idx != 0:
-                json_str = content[start_idx:end_idx]
-                # Remove trailing commas before closing braces
-                json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
-                # Remove newlines and fix quotes
-                json_str = json_str.replace('\\n', ' ').replace('\\"', '"')
-                persona_data = json.loads(json_str)
-                if 'metadata' not in persona_data:
-                    persona_data['metadata'] = {}
-                persona_data['metadata']['generated_at'] = self._get_current_timestamp()
-                persona_data['formatted_text'] = self._format_persona_text_with_citations(persona_data)
-                return persona_data
+            # Remove markdown/code block wrappers
+            content = re.sub(r"^\s*```(?:json)?|```\s*$", "", content.strip(), flags=re.MULTILINE)
+            
+            # Find the largest JSON object in the string
+            matches = list(re.finditer(r'\{[\s\S]*\}', content))
+            if not matches:
+                raise ValueError("No JSON object found in LLM response.")
+            
+            # Use the largest match
+            json_str = max((m.group(0) for m in matches), key=len)
+            
+            # Remove trailing commas before closing braces/brackets
+            json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+            
+            # Fix unquoted string values more comprehensively
+            # Pattern 1: "key": value (where value is not quoted and not a number)
+            json_str = re.sub(r'("[^"]+"\s*:\s*)([A-Za-z][A-Za-z0-9\-_/\s]+?)(\s*[,}\]])', 
+                             lambda m: m.group(1) + f'"{m.group(2).strip()}"' + m.group(3), json_str)
+            
+            # Pattern 2: "key": value (where value contains spaces or special chars)
+            json_str = re.sub(r'("[^"]+"\s*:\s*)([^",\d\[\]{}][^,\d\[\]{}]*?)(\s*[,}\]])', 
+                             lambda m: m.group(1) + f'"{m.group(2).strip()}"' + m.group(3), json_str)
+            
+            # Fix age ranges like "age": 30-40 -> "age": "30-40"
+            json_str = re.sub(r'("age"\s*:\s*)(\d+-\d+)', r'\1"\2"', json_str)
+            
+            # Fix occupation, location, status fields
+            json_str = re.sub(r'("occupation"\s*:\s*)([^",\d\[\]{}][^,\d\[\]{}]*?)(\s*[,}\]])', 
+                             lambda m: m.group(1) + f'"{m.group(2).strip()}"' + m.group(3), json_str)
+            json_str = re.sub(r'("location"\s*:\s*)([^",\d\[\]{}][^,\d\[\]{}]*?)(\s*[,}\]])', 
+                             lambda m: m.group(1) + f'"{m.group(2).strip()}"' + m.group(3), json_str)
+            json_str = re.sub(r'("status"\s*:\s*)([^",\d\[\]{}][^,\d\[\]{}]*?)(\s*[,}\]])', 
+                             lambda m: m.group(1) + f'"{m.group(2).strip()}"' + m.group(3), json_str)
+            
+            # Remove newlines and fix escaped quotes
+            json_str = json_str.replace('\\n', ' ').replace('\\"', '"')
+            
+            # Try parsing
+            persona_data = json.loads(json_str)
+            if 'metadata' not in persona_data:
+                persona_data['metadata'] = {}
+            persona_data['metadata']['generated_at'] = self._get_current_timestamp()
+            persona_data['metadata']['format'] = 'llm'
+
+            # --- PATCH: Ensure big_five_traits is always filled ---
+            big_five = None
+            # 1. Try LLM response
+            if 'big_five_traits' in persona_data and isinstance(persona_data['big_five_traits'], dict):
+                big_five = persona_data['big_five_traits']
+                # Ensure all values are numbers
+                big_five = {k: int(v) if isinstance(v, (int, float)) else 50 for k, v in big_five.items()}
+            
+            # 2. Try MBTI/analysis mapping if missing or all zeros
+            if not big_five or not any(v > 0 for v in big_five.values()):
+                personality = persona_data.get('personality', {})
+                # Try to map from MBTI-style fields
+                big_five = {
+                    'openness': personality.get('intuition', 60),
+                    'conscientiousness': personality.get('judging', 65),
+                    'extraversion': personality.get('extrovert', 60),
+                    'agreeableness': personality.get('feeling', 70),
+                    'neuroticism': max(0, 100 - (personality.get('introvert', 50) + personality.get('extrovert', 50)) // 2)
+                }
+            
+            # 3. If still missing, use defaults
+            if not big_five or not any(v > 0 for v in big_five.values()):
+                big_five = {'openness': 60, 'conscientiousness': 65, 'extraversion': 60, 'agreeableness': 70, 'neuroticism': 40}
+            
+            persona_data['big_five_traits'] = big_five
+            
+            # --- PATCH: Ensure chart_data is complete ---
+            if 'chart_data' not in persona_data:
+                persona_data['chart_data'] = {}
+            
+            # Ensure all required chart data fields exist
+            required_chart_fields = ['community_engagement', 'activity_patterns', 'sentiment_timeline', 'user_motivations']
+            for field in required_chart_fields:
+                val = persona_data['chart_data'].get(field)
+                if not val or (isinstance(val, list) and len(val) == 0):
+                    # Generate template data for missing or empty fields
+                    if field == 'community_engagement':
+                        persona_data['chart_data'][field] = [
+                            {"name": "Reddit Participation", "value": 30},
+                            {"name": "Subreddit Diversity", "value": 25},
+                            {"name": "Avg Score", "value": 40},
+                            {"name": "Engagement Level", "value": 35}
+                        ]
+                    elif field == 'activity_patterns':
+                        persona_data['chart_data'][field] = [
+                            {"name": "Peak Hour", "value": 60},
+                            {"name": "Frequency", "value": 45},
+                            {"name": "Posting Rate", "value": 30},
+                            {"name": "Comment Rate", "value": 35}
+                        ]
+                    elif field == 'sentiment_timeline':
+                        persona_data['chart_data'][field] = [
+                            {"name": "Jan", "value": 65},
+                            {"name": "Feb", "value": 70},
+                            {"name": "Mar", "value": 75},
+                            {"name": "Apr", "value": 80},
+                            {"name": "May", "value": 85},
+                            {"name": "Jun", "value": 90}
+                        ]
+                    elif field == 'user_motivations':
+                        persona_data['chart_data'][field] = [
+                            {"name": "Community", "value": 80},
+                            {"name": "Information", "value": 70},
+                            {"name": "Expression", "value": 60},
+                            {"name": "Connection", "value": 75}
+                        ]
+
+            return persona_data
         except Exception as e:
             logger.warning(f"Failed to parse LLM response: {e}")
+            logger.warning(f"Response content: {content[:500]}...")
+            try:
+                logger.warning(f"Cleaned JSON string: {json_str[:500]}...")
+            except Exception:
+                pass
             # Fallback to template persona
-            return self._generate_template_persona(None, None) # Pass dummy values to avoid errors
+            return self._generate_template_persona({}, {})
     
     def _format_persona_text(self, persona_data: Dict[str, Any]) -> str:
         """Format persona data as readable text."""
@@ -556,9 +631,26 @@ Total Comments Analyzed: {len(real_comments)}
     
     def _generate_template_persona(self, user_data, analysis_results):
         """Generate a template-based persona when LLM is not available."""
+        if not user_data:
+            user_data = {}
+        if not analysis_results:
+            analysis_results = {}
+            
         username = user_data.get('username', 'Unknown')
         posts = user_data.get('posts', [])
         comments = user_data.get('comments', [])
+        
+        # Extract analysis results
+        sentiment = analysis_results.get('sentiment_analysis', {})
+        personality = analysis_results.get('personality_traits', {})
+        interests = analysis_results.get('interests', {})
+        writing_style = analysis_results.get('writing_style', {})
+        mbti = analysis_results.get('mbti_estimation', {})
+        activity_patterns = analysis_results.get('activity_patterns', {})
+        community_engagement = analysis_results.get('community_engagement', {})
+        
+        # Calculate Big Five traits from available data
+        big_five = self._calculate_big_five_traits(personality, sentiment, writing_style)
         
         # Extract sample posts and comments for template
         sample_posts = []
@@ -615,9 +707,16 @@ Total Comments Analyzed: {len(real_comments)}
                 "feeling": 50,
                 "thinking": 50,
                 "perceiving": 45,
-                "judging": 55
+                "judging": 55,
+                "mbti_type": mbti.get('type', 'Unknown'),
+                "mbti_description": mbti.get('description', 'Unknown')
             },
-            "behavior_habits": [
+            "behaviors": [
+                "Regularly participates in online discussions",
+                "Shares opinions and experiences with the community",
+                "Engages with content across multiple subreddits"
+            ],
+            "behaviors_habits": [
                 "Regularly participates in online discussions",
                 "Shares opinions and experiences with the community",
                 "Engages with content across multiple subreddits"
@@ -626,6 +725,11 @@ Total Comments Analyzed: {len(real_comments)}
                 "Limited information in some posts",
                 "Difficulty finding relevant content",
                 "Inconsistent community responses"
+            ],
+            "goals": [
+                "To connect with like-minded individuals",
+                "To share knowledge and experiences",
+                "To stay informed about topics of interest"
             ],
             "goals_needs": [
                 "To connect with like-minded individuals",
@@ -637,23 +741,110 @@ Total Comments Analyzed: {len(real_comments)}
             "analysis_score": 65,
             "real_posts": sample_posts,
             "real_comments": sample_comments,
-            "interests": ["Community Discussion", "Information Sharing", "Online Engagement"],
+            "interests": [interest[0] for interest in interests.get('top_interests', [])] if interests.get('top_interests') else ["Community Discussion", "Information Sharing", "Online Engagement"],
             "writing_style": {
-                "summary": "Clear and communicative",
-                "complexity": "Moderate",
-                "tone": "Engaging"
+                "summary": writing_style.get('summary', 'Clear and communicative'),
+                "complexity": writing_style.get('complexity', 'Moderate'),
+                "tone": writing_style.get('tone', 'Engaging')
             },
             "social_views": ["Community-oriented", "Information sharing"],
+            "behaviors_habits": {
+                "daily_patterns": f"User is most active during {activity_patterns.get('activity_pattern', 'unknown')} hours",
+                "lifestyle_choices": "Based on Reddit activity patterns",
+                "reddit_usage": f"Posts {len(posts)} times, comments {len(comments)} times",
+                "posting_habits": f"Average score: {sum(p.get('score', 0) for p in posts) / max(len(posts), 1):.1f}",
+                "activity_times": f"Peak activity: {activity_patterns.get('peak_hour', 'unknown')} hours"
+            },
+            "goals_needs": {
+                "primary_objectives": "Information sharing and community engagement",
+                "reddit_seeking": "Discussion and knowledge exchange",
+                "personal_goals": "Building online presence and connections",
+                "information_needs": "Community insights and discussions"
+            },
+            "big_five_traits": big_five,
+            "personality_traits": big_five,
+            "community_engagement": {
+                "participation_level": community_engagement.get('engagement_level', 'Moderate'),
+                "subreddit_diversity": f"{community_engagement.get('subreddit_diversity', 0)} different subreddits",
+                "interaction_frequency": f"{len(posts) + len(comments)} total interactions",
+                "contribution_level": f"Average score: {community_engagement.get('avg_score', 0):.1f}"
+            },
             "activity_patterns": {
-                "frequency": "Regular",
-                "peak_hours": "Evening",
-                "engagement_style": "Active participant"
+                "posting_frequency": f"{len(posts)} posts, {len(comments)} comments",
+                "peak_times": f"Peak at {activity_patterns.get('peak_hour', 'unknown')} hours",
+                "engagement_style": activity_patterns.get('activity_pattern', 'Regular'),
+                "activity_metrics": f"Activity frequency: {activity_patterns.get('activity_frequency', 0)}"
+            },
+            "sentiment_timeline": {
+                "overall_trend": sentiment.get('sentiment_category', 'neutral'),
+                "mood_patterns": f"Sentiment score: {sentiment.get('overall_sentiment', 0):.2f}",
+                "emotional_consistency": f"Subjectivity: {sentiment.get('subjectivity', 0):.2f}",
+                "sentiment_evolution": "Based on recent activity"
+            },
+            "user_motivations": {
+                "primary_drivers": "Community engagement and information sharing",
+                "posting_motivations": "Discussion and knowledge exchange",
+                "social_needs": "Connection with like-minded individuals",
+                "personal_aspirations": "Building online presence and influence"
             },
             "metadata": {
                 "source": "template",
                 "generated_at": self._get_current_timestamp(),
                 "username": username,
                 "confidence_overall": 0.3
+            },
+            "chart_data": {
+                "personality_radar": [
+                    {"name": "Openness", "value": big_five.get('openness', 70)},
+                    {"name": "Conscientiousness", "value": big_five.get('conscientiousness', 65)},
+                    {"name": "Extraversion", "value": big_five.get('extraversion', 60)},
+                    {"name": "Agreeableness", "value": big_five.get('agreeableness', 75)},
+                    {"name": "Neuroticism", "value": big_five.get('neuroticism', 40)}
+                ],
+                "interests_pie": [
+                    {"name": "Technology", "value": 25},
+                    {"name": "Gaming", "value": 20},
+                    {"name": "Science", "value": 15},
+                    {"name": "Entertainment", "value": 15},
+                    {"name": "Community", "value": 25}
+                ],
+                "big_five": [
+                    {"name": "Openness", "value": big_five.get('openness', 70), "color": "blue"},
+                    {"name": "Conscientiousness", "value": big_five.get('conscientiousness', 65), "color": "green"},
+                    {"name": "Extraversion", "value": big_five.get('extraversion', 60), "color": "yellow"},
+                    {"name": "Agreeableness", "value": big_five.get('agreeableness', 75), "color": "purple"},
+                    {"name": "Neuroticism", "value": big_five.get('neuroticism', 40), "color": "red"}
+                ],
+                "community_engagement": [
+                    {"name": "Reddit Participation", "value": min(100, (len(posts) + len(comments)) * 10) if (len(posts) + len(comments)) > 0 else 30},
+                    {"name": "Subreddit Diversity", "value": min(100, len(set(p.get('subreddit', '') for p in posts + comments)) * 20) if (len(posts) + len(comments)) > 0 else 25},
+                    {"name": "Avg Score", "value": min(100, max(0, sum(p.get('score', 0) for p in posts + comments) / max(len(posts + comments), 1) * 10)) if (len(posts) + len(comments)) > 0 else 40},
+                    {"name": "Engagement Level", "value": min(100, (len(posts) + len(comments)) * 5) if (len(posts) + len(comments)) > 0 else 35}
+                ],
+                "activity_patterns": [
+                    {"name": "Peak Hour", "value": min(100, activity_patterns.get('peak_hour', 12) * 4) if activity_patterns.get('peak_hour') else 60},
+                    {"name": "Frequency", "value": min(100, (len(posts) + len(comments)) * 8) if (len(posts) + len(comments)) > 0 else 45},
+                    {"name": "Posting Rate", "value": min(100, len(posts) * 15) if len(posts) > 0 else 30},
+                    {"name": "Comment Rate", "value": min(100, len(comments) * 10) if len(comments) > 0 else 35}
+                ],
+                "sentiment_timeline": [
+                    {"name": "Jan", "value": min(100, max(0, (sentiment.get('overall_sentiment', 0) + 1) * 50)) if sentiment.get('overall_sentiment') is not None else 65},
+                    {"name": "Feb", "value": min(100, max(0, (sentiment.get('overall_sentiment', 0) + 1) * 50)) if sentiment.get('overall_sentiment') is not None else 70},
+                    {"name": "Mar", "value": min(100, max(0, (sentiment.get('overall_sentiment', 0) + 1) * 50)) if sentiment.get('overall_sentiment') is not None else 75},
+                    {"name": "Apr", "value": min(100, max(0, (sentiment.get('overall_sentiment', 0) + 1) * 50)) if sentiment.get('overall_sentiment') is not None else 80},
+                    {"name": "May", "value": min(100, max(0, (sentiment.get('overall_sentiment', 0) + 1) * 50)) if sentiment.get('overall_sentiment') is not None else 85},
+                    {"name": "Jun", "value": min(100, max(0, (sentiment.get('overall_sentiment', 0) + 1) * 50)) if sentiment.get('overall_sentiment') is not None else 90}
+                ],
+                "user_motivations": [
+                    {"name": "Community", "value": 80},
+                    {"name": "Information", "value": 70},
+                    {"name": "Expression", "value": 60},
+                    {"name": "Connection", "value": 75}
+                ],
+                "real_content": {
+                    "posts": sample_posts,
+                    "comments": sample_comments
+                }
             },
             "formatted_text": f"""
 🚀 REDDIT PERSONA REPORT
@@ -665,7 +856,7 @@ Total Comments Analyzed: {len(real_comments)}
 
 🎭 PERSONALITY PROFILE
 {'-'*30}
-Type: ENFP (Template)
+Type: {mbti.get('type', 'ENFP')} (Template)
 Description: An active Reddit user who enjoys participating in online communities and sharing thoughts with others.
 
 Key Traits:
@@ -682,9 +873,9 @@ Key Traits:
 
 📝 WRITING STYLE
 {'-'*30}
-Summary: Clear and communicative
-Complexity: Moderate
-Tone: Engaging
+Summary: {writing_style.get('summary', 'Clear and communicative')}
+Complexity: {writing_style.get('complexity', 'Moderate')}
+Tone: {writing_style.get('tone', 'Engaging')}
 
 🌍 SOCIAL VIEWS
 {'-'*30}
@@ -708,6 +899,53 @@ Template-based analysis - limited real data available
         }
         
         return persona_data
+    
+    def _calculate_big_five_traits(self, personality: Dict, sentiment: Dict, writing_style: Dict) -> Dict[str, int]:
+        """Calculate Big Five personality traits from available data."""
+        # Default values
+        traits = {
+            'openness': 50,
+            'conscientiousness': 50,
+            'extraversion': 50,
+            'agreeableness': 50,
+            'neuroticism': 50
+        }
+        
+        # Adjust based on sentiment
+        sentiment_score = sentiment.get('overall_sentiment', 0)
+        if sentiment_score > 0.3:
+            traits['agreeableness'] += 20
+            traits['neuroticism'] -= 10
+        elif sentiment_score < -0.3:
+            traits['neuroticism'] += 20
+            traits['agreeableness'] -= 10
+        
+        # Adjust based on writing style
+        complexity = writing_style.get('complexity', 'moderate')
+        if complexity == 'high':
+            traits['openness'] += 15
+        elif complexity == 'low':
+            traits['openness'] -= 10
+        
+        # Adjust based on personality traits
+        dominant_traits = personality.get('dominant_traits', [])
+        for trait, score in dominant_traits:
+            if 'open' in trait.lower():
+                traits['openness'] += 10
+            elif 'conscientious' in trait.lower():
+                traits['conscientiousness'] += 10
+            elif 'extravert' in trait.lower():
+                traits['extraversion'] += 10
+            elif 'agreeable' in trait.lower():
+                traits['agreeableness'] += 10
+            elif 'neurotic' in trait.lower():
+                traits['neuroticism'] += 10
+        
+        # Ensure values are within 0-100 range
+        for key in traits:
+            traits[key] = max(0, min(100, traits[key]))
+        
+        return traits
     
     def _get_current_timestamp(self) -> str:
         """Get current timestamp in ISO format."""

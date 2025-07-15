@@ -516,9 +516,15 @@ async def analyze_user(request: UserAnalysisRequest, background_tasks: Backgroun
         
         if not user_data['posts'] and not user_data['comments']:
             logger.warning(f"No data collected for user {extracted_username} from any source")
-            raise HTTPException(status_code=404, detail="No data found for this user")
-        
-        analysis_results = await analyzer.analyze_user(user_data)
+            # Instead of raising an error, create a template persona
+            logger.info("Creating template persona for user with no data")
+            from llm_service import LLMService
+            llm_service = LLMService()
+            persona = llm_service._generate_template_persona(user_data, {})
+            analysis_results = {}
+        else:
+            analysis_results = await analyzer.analyze_user(user_data)
+            persona = await builder.build_persona(user_data, analysis_results)
         persona = await builder.build_persona(user_data, analysis_results)
         
         # Save persona
@@ -556,10 +562,16 @@ async def analyze_user(request: UserAnalysisRequest, background_tasks: Backgroun
         # Generate PDF if requested
         pdf_file = None
         if request.generate_pdf:
-            from utils import generate_pdf_report
-            pdf_file = await generate_pdf_report(persona, output_dir)
-            if pdf_file is None:
-                logger.warning("PDF generation failed or not available")
+            try:
+                # Use the same PDF generator as the download endpoint
+                output_dir_path = Path(output_dir)
+                pdf_path = output_dir_path / f"{extracted_username}_comprehensive_report.pdf"
+                pdf_generator.generate_persona_pdf(persona, str(pdf_path))
+                pdf_file = str(pdf_path)
+                logger.info(f"PDF generated successfully: {pdf_file}")
+            except Exception as e:
+                logger.warning(f"PDF generation failed: {e}")
+                pdf_file = None
         
         # Add chart data to persona
         if chart_data:
@@ -860,8 +872,8 @@ async def generate_persona(request: UserAnalysisRequest):
         persona_data = await builder.build_persona(user_data, analysis_results)
         
         # Generate visualizations
-        visualizer = PersonaVisualizer()
-        viz_files = await visualizer.generate_all_visualizations(persona_data, clean_username)
+        output_dir = create_output_dir(clean_username)
+        viz_files = await visualizer.create_visualizations(persona_data, str(output_dir))
         
         return {
             "success": True,
@@ -986,8 +998,8 @@ async def get_demo_persona():
         persona_data = persona.to_dict()
         
         # Generate visualizations
-        visualizer = PersonaVisualizer()
-        viz_files = await visualizer.generate_all_visualizations(persona_data, "demo_user")
+        output_dir = create_output_dir("demo_user")
+        viz_files = await visualizer.create_visualizations(persona_data, str(output_dir))
         
         return {
             "success": True,
@@ -1050,9 +1062,14 @@ async def download_pdf(username: str):
         raise HTTPException(status_code=404, detail="Analysis not found")
     
     try:
-        # Create output directory
-        output_dir = create_output_dir(username)
-        pdf_path = output_dir / f"{username}_comprehensive_report.pdf"
+        # Look for PDF in the personas directory first (where analysis endpoint creates it)
+        personas_dir = Path("personas")
+        pdf_path = personas_dir / f"{username}_comprehensive_report.pdf"
+        
+        # If not found in personas, check in username-specific directory
+        if not pdf_path.exists():
+            output_dir = create_output_dir(username)
+            pdf_path = output_dir / f"{username}_comprehensive_report.pdf"
         
         # Check if PDF already exists
         if not pdf_path.exists():
